@@ -3,12 +3,12 @@ import {illustration} from './illustrations.mjs';
 import {firebaseConfig} from './firebase-config.mjs';
 import {readLegacy,productData} from './model.mjs';
 import {createCloud} from './cloud.mjs';
-import {recipes,suggestions,recipeBook,assess} from './recipes.mjs';
+import {recipes,suggestions,recipeBook,assess,chapters} from './recipes.mjs';
 
 const $=id=>document.getElementById(id);
 const escape=value=>String(value).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 let products=[],categories=[],selected='all',query='',cloud,phase='loading',connected=false,syncState='offline',imported=false,editingOriginal=null,returnFocus,categoryFromEditor=false;
-let toastTimer,wantsToOpen=false,detailProductId=null;
+let toastTimer,wantsToOpen=false,detailProductId=null,bookRecipeId=null,bookProductId=null,contentsPage=0,bookItems=[];
 function notify(message){$('toast').textContent=message;$('toast').classList.add('visible');clearTimeout(toastTimer);toastTimer=setTimeout(()=>$('toast').classList.remove('visible'),5000);}
 function plural(n){return n%10===1&&n%100!==11?'упаковка':n%10>=2&&n%10<=4&&(n%100<12||n%100>14)?'упаковки':'упаковок';}
 function errorMessage(error){
@@ -57,7 +57,7 @@ function showSession(state){
   $('authError').textContent='';
   if(phase!=='ready'){
     products=[];categories=[];connected=false;selected='all';query='';$('search').value='';
-    [$('editor'),$('categoryEditor'),$('productDetails'),$('recipeDetails')].forEach(dialog=>dialog.close());
+    [$('editor'),$('categoryEditor'),$('productDetails')].forEach(dialog=>dialog.close());
     $('recipeBook').hidden=true;$('inventoryView').hidden=false;
     render();
   }
@@ -200,40 +200,78 @@ else try{
   });
 }catch(error){showSession({phase:'error',error});}
 
+function dishPicture(r,extra=''){
+  const x=(r.image%4)*100/3,y=Math.floor(r.image/4)*100/3;
+  return `<span class="dish-picture ${extra}" style="background-position:${x}% ${y}%" aria-hidden="true"></span>`;
+}
 function recipeCards(items){
-  return items.map(r=>`<button type="button" class="recipe-card" data-recipe="${escape(r.id)}"><span class="recipe-card-title">${escape(r.title)}</span><span>${r.minutes} мин · 2 порции</span><span class="recipe-stock">В морозилке: ${r.available} из ${r.ingredients.length} ингредиентов</span></button>`).join('')||'<p class="recipe-note">Подходящих рецептов пока нет. Попробуйте другой продукт или запрос.</p>';
+  return items.map(r=>`<button type="button" class="recipe-card" data-recipe="${escape(r.id)}">${dishPicture(r,'dish-thumbnail')}<span class="recipe-card-copy"><span class="recipe-card-title">${escape(r.title)}</span><span>${r.minutes} мин · 2 порции</span><span class="recipe-stock">В морозилке: ${r.available} из ${r.ingredients.length} ингредиентов</span></span></button>`).join('')||'<p class="recipe-note">Для этого продукта рецептов пока нет.</p>';
 }
 function renderRecipes(){
-  const items=recipeBook(products,$('recipeSearch').value);
-  $('bookRecipes').innerHTML=recipeCards(items);$('recipeCount').textContent=`Рецептов: ${items.length}`;
+  const filter=products.find(p=>p.id===bookProductId);
+  if(bookProductId&&!filter)bookProductId=null;
+  const q=$('recipeSearch').value.trim().toLocaleLowerCase('ru').replaceAll('ё','е'),chapter=$('recipeChapter').value;
+  bookItems=filter?suggestions(filter,products).filter(r=>(chapter==='all'||r.chapter===chapter)&&`${r.title} ${r.ingredients.map(i=>i.label).join(' ')}`.toLocaleLowerCase('ru').replaceAll('ё','е').includes(q)):recipeBook(products,q,chapter);
+  $('recipeCount').textContent=filter?`Для продукта «${filter.name}» · рецептов: ${bookItems.length}`:`По вашим запасам: ${bookItems.length} · в полной книге: ${recipes.length}`;
+  $('allBookRecipes').hidden=!filter;
+  contentsPage=Math.min(contentsPage,Math.max(0,Math.ceil(bookItems.length/6)-1));
+  paintBook();
   if($('productDetails').open){
     const product=products.find(p=>p.id===detailProductId);
-    if(!product){$('recipeDetails').close();$('productDetails').close();}
-    else fillProduct(product);
+    if(!product)$('productDetails').close();else fillProduct(product);
   }
-  if($('recipeDetails').open)fillRecipe($('recipeDetails').dataset.recipe);
+}
+function ingredientList(r){return `<ul class="recipe-ingredients">${r.ingredients.map(i=>`<li><span>${escape(i.label)} <small>${escape(i.amount)}</small></span><span class="ingredient-status ${i.available?'in-stock':''}">${i.available?'✓ В морозилке':'Проверить дома'}</span></li>`).join('')}</ul>`;}
+function paintBook(){
+  const source=recipes.find(r=>r.id===bookRecipeId),index=bookItems.findIndex(r=>r.id===bookRecipeId);
+  if(source){
+    const r=assess(source,products);
+    $('bookLeft').innerHTML=`<p class="book-kicker">${escape(r.chapter)}</p><h2 tabindex="-1" id="openRecipeHeading">${escape(r.title)}</h2><p class="book-meta">Около ${r.minutes} мин · 2 порции</p>${dishPicture(r)}<p class="illustration-caption">Иллюстрация к разделу</p><h3>Ингредиенты</h3>${ingredientList(r)}<p class="recipe-note">Наличие отмечено без проверки достаточного количества. Продукты без отметки проверьте дома.</p>`;
+    $('bookRight').innerHTML=`<p class="book-kicker">Готовим дома</p><h3 class="steps-heading">Приготовление</h3><ol class="recipe-steps">${r.steps.map(step=>`<li>${escape(step)}</li>`).join('')}</ol><p class="recipe-note cooking-note">Время приблизительное, без размораживания. Указания на упаковке продукта имеют приоритет. <a href="https://www.foodsafety.gov/food-safety-charts/safe-minimum-internal-temperatures" target="_blank" rel="noopener noreferrer">Температура готовности</a>.</p><span class="printed-page" aria-hidden="true">${index>=0?index*2+2:'✳'}</span>`;
+    $('bookPrevious').disabled=index<=0;$('bookNext').disabled=!bookItems.length||index>=bookItems.length-1;
+    $('bookPageNumber').textContent=index>=0?`Рецепт ${index+1} из ${bookItems.length}`:'Выбранный рецепт';
+  }else{
+    const first=bookItems[contentsPage*6]||bookItems[0]||recipes[0];
+    $('bookLeft').innerHTML=`<p class="book-kicker">Морозилка · домашняя коллекция</p><h2 class="book-title">Кулинарная<br>книга</h2><span class="book-ornament" aria-hidden="true">✳</span>${dishPicture(first,'contents-picture')}<p class="book-intro">${bookProductId?'Подборка для выбранного продукта.':'Блюда из ваших запасов.'}<br>Мясо с гарниром, супы, выпечка и что-нибудь сладкое.</p><p class="recipe-note">Картофель, крупы и другие домашние продукты тоже есть в рецептах — их наличие проверьте дома.</p>`;
+    $('bookRight').innerHTML=`<p class="book-kicker">Выбираем, что приготовить</p><h3 class="steps-heading">Содержание</h3><div class="book-contents">${bookItems.slice(contentsPage*6,contentsPage*6+6).map((r,i)=>`<button class="contents-recipe" data-recipe="${escape(r.id)}"><span class="contents-number">${contentsPage*6+i+1}</span><span><strong>${escape(r.title)}</strong><small>${escape(r.chapter)} · ${r.minutes} мин</small></span><span aria-hidden="true">↗</span></button>`).join('')||'<p class="recipe-note">Подходящих рецептов пока нет. Измените запрос или выберите другой раздел.</p>'}</div><span class="printed-page" aria-hidden="true">${contentsPage+1}</span>`;
+    $('bookPrevious').disabled=contentsPage===0;$('bookNext').disabled=(contentsPage+1)*6>=bookItems.length;
+    $('bookPageNumber').textContent=`Содержание ${contentsPage+1} / ${Math.max(1,Math.ceil(bookItems.length/6))}`;
+  }
 }
 function fillProduct(product){
   $('detailsHeading').textContent=product.name;$('detailsAmount').textContent=formatMeasurements(product);
-  $('productRecipes').innerHTML=recipeCards(suggestions(product,products));
+  const items=suggestions(product,products);
+  $('productRecipeNote').textContent=items.length?`Вариантов: ${items.length}. Домашние ингредиенты и количество проверьте по рецепту.`:'В книге пока нет подборки для этого продукта.';
+  $('productRecipes').innerHTML=recipeCards(items);
   $('editDetails').disabled=!connected||!navigator.onLine;
 }
 function showProduct(id){
   const product=products.find(p=>p.id===id);if(!product)return;
   detailProductId=id;fillProduct(product);$('productDetails').showModal();
 }
-function fillRecipe(id){
-  const source=recipes.find(r=>r.id===id);if(!source)return;
-  const r=assess(source,products);
-  $('recipeHeading').textContent=r.title;$('recipeMeta').textContent=`Около ${r.minutes} мин · 2 порции`;
-  $('recipeIngredients').innerHTML=r.ingredients.map(i=>`<li><span>${escape(i.label)} <small>${escape(i.amount)}</small></span><span class="ingredient-status ${i.available?'in-stock':''}">${i.available?'✓ В морозилке':'Проверить дома'}</span></li>`).join('');
-  $('recipeSteps').innerHTML=r.steps.map(step=>`<li>${escape(step)}</li>`).join('');
+function openBook(id=null,productId=null){
+  bookRecipeId=id;bookProductId=productId;contentsPage=0;$('recipeSearch').value='';$('recipeChapter').value='all';
+  $('inventoryView').hidden=true;$('recipeBook').hidden=false;renderRecipes();$('backToFreezer').focus();window.scrollTo(0,0);
+  if(!matchMedia('(prefers-reduced-motion: reduce)').matches)$('bookSpread').animate([{opacity:0,transform:'perspective(1400px) rotateY(-7deg)'},{opacity:1,transform:'perspective(1400px) rotateY(0deg)'}],{duration:420,easing:'ease-out'});
 }
-$('openRecipes').addEventListener('click',()=>{$('inventoryView').hidden=true;$('recipeBook').hidden=false;renderRecipes();$('backToFreezer').focus();window.scrollTo(0,0);});
+function turnBook(direction){
+  if(bookRecipeId){const index=bookItems.findIndex(r=>r.id===bookRecipeId),next=bookItems[index+direction];if(!next)return;bookRecipeId=next.id;}
+  else contentsPage+=direction;
+  paintBook();
+  if(!matchMedia('(prefers-reduced-motion: reduce)').matches)$('bookSpread').animate([{opacity:.65,transform:`perspective(1400px) rotateY(${direction*3}deg)`},{opacity:1,transform:'perspective(1400px) rotateY(0deg)'}],{duration:320,easing:'ease-out'});
+  $('bookSpread').scrollIntoView({block:'start',behavior:'auto'});
+}
+$('recipeChapter').innerHTML+=[...chapters].map(c=>`<option value="${escape(c)}">${escape(c)}</option>`).join('');
+$('openRecipes').addEventListener('click',()=>openBook());
 $('backToFreezer').addEventListener('click',()=>{$('recipeBook').hidden=true;$('inventoryView').hidden=false;$('openRecipes').focus();});
-$('recipeSearch').addEventListener('input',renderRecipes);
-for(const id of ['bookRecipes','productRecipes'])$(id).addEventListener('click',e=>{const button=e.target.closest('[data-recipe]');if(button){$('recipeDetails').dataset.recipe=button.dataset.recipe;fillRecipe(button.dataset.recipe);$('recipeDetails').showModal();}});
-$('closeRecipe').addEventListener('click',()=>$('recipeDetails').close());
+function resetBookSearch(){bookRecipeId=null;contentsPage=0;renderRecipes();}
+$('recipeSearch').addEventListener('input',resetBookSearch);$('recipeChapter').addEventListener('change',resetBookSearch);
+$('allBookRecipes').addEventListener('click',()=>{bookProductId=null;resetBookSearch();});
+$('bookContentsButton').addEventListener('click',()=>{bookRecipeId=null;renderRecipes();});
+$('bookPrevious').addEventListener('click',()=>turnBook(-1));$('bookNext').addEventListener('click',()=>turnBook(1));
+$('recipeBook').addEventListener('keydown',e=>{if(e.target.matches('input,select'))return;if(e.key==='ArrowLeft'&&!$('bookPrevious').disabled){e.preventDefault();turnBook(-1);}if(e.key==='ArrowRight'&&!$('bookNext').disabled){e.preventDefault();turnBook(1);}});
+$('bookSpread').addEventListener('click',e=>{const button=e.target.closest('[data-recipe]');if(button){bookRecipeId=button.dataset.recipe;paintBook();$('openRecipeHeading').focus();$('bookSpread').scrollIntoView({block:'start'});}});
+$('productRecipes').addEventListener('click',e=>{const button=e.target.closest('[data-recipe]');if(button){$('productDetails').close();openBook(button.dataset.recipe,detailProductId);}});
 $('closeDetails').addEventListener('click',()=>$('productDetails').close());
-$('productDetails').addEventListener('close',()=>{if(phase==='ready')document.querySelector(`[data-product="${CSS.escape(detailProductId||'')}"]`)?.focus();});
-$('editDetails').addEventListener('click',()=>{const product=products.find(p=>p.id===detailProductId);if(product){$('productDetails').close();edit(product);}});
+$('productDetails').addEventListener('close',()=>{if(phase==='ready'&&$('recipeBook').hidden)document.querySelector(`[data-product="${CSS.escape(detailProductId||'')}"]`)?.focus();});
+$('editDetails').addEventListener('click',()=>{const product=products.find(p=>p.id===detailProductId);if(product){$('productDetails').close();edit(product);returnFocus=document.querySelector(`[data-product="${CSS.escape(product.id)}"]`);}});
