@@ -1,0 +1,16 @@
+{
+  "name": "morozilka",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "start": "python3 -m http.server 4173 --bind 127.0.0.1 --directory dist",
+    "test": "node --test tests/model.test.mjs",
+    "test:rules": "firebase emulators:exec --project demo-morozilka --only firestore 'node --test tests/rules.test.mjs'"
+  },
+  "devDependencies": {
+    "@firebase/rules-unit-testing": "^5.0.2",
+    "firebase": "^12.19.0",
+    "firebase-tools": "^15.37.0"
+  }
+}

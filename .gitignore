@@ -1,0 +1,10 @@
+node_modules/
+dist/
+.private/
+.firebase/
+*-debug.log
+.env
+.env.*
+!.env.example
+.DS_Store
+previews/
