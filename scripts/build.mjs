@@ -5,7 +5,9 @@ if(!configured&&!process.argv.includes('--allow-unconfigured'))throw new Error('
 const files=['index.html','style.css','app.mjs','data.mjs','model.mjs','illustrations.mjs','cloud.mjs','store.mjs','firebase-config.mjs'];
 await rm('dist',{recursive:true,force:true});await mkdir('dist');
 for(const file of files)await copyFile(file,`dist/${file}`);
+await mkdir('dist/assets');
+await copyFile('assets/chicken-wings.png','dist/assets/chicken-wings.png');
 await writeFile('dist/.nojekyll','');
 const publishedData=await readFile('dist/data.mjs','utf8');
 if(/sourceCategories|initialProducts/.test(publishedData))throw new Error('В публикацию попал исходный список продуктов.');
-console.log(`Built ${files.length} public files. Firebase ${configured?'configured':'not configured (local preview only)'}. Private inventory excluded.`);
+console.log(`Built ${files.length+1} public files. Firebase ${configured?'configured':'not configured (local preview only)'}. Private inventory excluded.`);

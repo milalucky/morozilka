@@ -130,7 +130,7 @@ aside { min-width: 0; padding-top: 5px; }
   box-shadow: 0 8px 7px -5px #42594780, inset 2px 0 3px #fff7, inset -2px 0 3px #fff5;
 }
 .package::before { content: ""; position: absolute; top: 5px; right: 6px; left: 6px; height: 3px; border-top: 1px solid #a3bda46b; border-bottom: 1px solid #a3bda46b; }
-.food-art { flex-shrink: 0; width: min(115px, 92%); height: 81px; margin-top: 1px; filter: drop-shadow(1px 4px 2px #47574224); }
+.food-art { object-fit: contain; flex-shrink: 0; width: min(115px, 92%); height: 81px; margin-top: 1px; filter: drop-shadow(1px 4px 2px #47574224); }
 .package-label { display: flex; flex: 1; flex-direction: column; justify-content: space-between; gap: 6px; width: 100%; min-height: 0; padding: 10px 9px 8px; border-radius: 1px; background: var(--card); box-shadow: 1px 2px 3px #50663e17; transform: rotate(-1.5deg); }
 .product:nth-child(even) .package-label { transform: rotate(1deg); }
 .product-name { font-size: 14px; font-weight: 500; line-height: 1.35; overflow-wrap: anywhere; }
