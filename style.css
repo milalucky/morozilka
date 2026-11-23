@@ -322,3 +322,27 @@ form[aria-busy=true] { opacity: .7; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
 }
+/* Recipe book uses the same paper labels as the freezer packages. */
+.freezer-toolbar { flex-wrap: wrap; }
+#recipeBook { max-width: 1120px; margin: 0 auto; }
+#recipeBook h1 { font: 36px Georgia, serif; margin: 25px 0 12px; }
+.recipe-note { color: var(--muted, #536b61); line-height: 1.6; font-size: 14px; }
+.recipe-grid { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 18px; }
+.recipe-card { display: flex; flex-direction: column; align-items: flex-start; gap: 12px; text-align: left; padding: 22px; background: #fffdf5; border: 1px solid #ccd8c7; border-radius: 10px; color: inherit; box-shadow: 0 3px 0 #dce3d5; min-width: 0; }
+.recipe-card:hover { border-color: #547c68; background: #fffefb; }
+.recipe-card-title { font: bold 21px/1.25 Georgia, serif; }
+.recipe-card>span:not(:first-child) { font-size: 13px; }
+.recipe-stock { color: #4a715f; margin-top: auto; }
+.recipe-list { display: grid; gap: 13px; }
+#productDetails,#recipeDetails { width: min(620px,calc(100% - 24px)); }
+#productDetails h2 { margin: 0; }
+#productDetails h3 { margin-top: 28px; }
+.recipe-ingredients { list-style: none; padding: 0; margin: 25px 0; }
+.recipe-ingredients li { display: flex; gap: 12px; justify-content: space-between; border-bottom: 1px solid #dce3d5; padding: 12px 0; align-items: center; }
+.recipe-ingredients small { display: block; margin-top: 5px; color: #586e61; }
+.ingredient-status { color: #6b6a60; font-size: 12px; flex-shrink: 0; }
+.ingredient-status.in-stock { color: #35664d; }
+.recipe-steps { padding-left: 23px; line-height: 1.65; }
+.recipe-steps li { padding: 0 0 16px 7px; }
+@media(max-width:1000px) { .recipe-grid { grid-template-columns:repeat(2,minmax(0,1fr)); } }
+@media(max-width:600px) { .recipe-grid { grid-template-columns:1fr; } .recipe-card { padding:18px; } #recipeBook h1 { font-size:30px; } .recipe-ingredients li { align-items:flex-start; } }

@@ -2,7 +2,7 @@ import {mkdir,rm,copyFile,writeFile,readFile} from 'node:fs/promises';
 import {firebaseConfig} from '../firebase-config.mjs';
 const configured=Boolean(firebaseConfig?.apiKey&&firebaseConfig?.projectId&&firebaseConfig?.authDomain);
 if(!configured&&!process.argv.includes('--allow-unconfigured'))throw new Error('Firebase ещё не настроен. Заполните firebase-config.mjs перед публикацией. Для локального просмотра: npm run build -- --allow-unconfigured');
-const files=['index.html','style.css','app.mjs','data.mjs','model.mjs','illustrations.mjs','cloud.mjs','store.mjs','firebase-config.mjs'];
+const files=['index.html','style.css','app.mjs','recipes.mjs','data.mjs','model.mjs','illustrations.mjs','cloud.mjs','store.mjs','firebase-config.mjs'];
 await rm('dist',{recursive:true,force:true});await mkdir('dist');
 for(const file of files)await copyFile(file,`dist/${file}`);
 await mkdir('dist/assets');

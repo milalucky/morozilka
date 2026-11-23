@@ -16,7 +16,7 @@ jobs:
     steps:
       - uses: actions/checkout@v6
       - name: Check data handling
-        run: node --test tests/model.test.mjs
+        run: node --test tests/model.test.mjs tests/recipes.test.mjs
       - name: Build public files
         run: node scripts/build.mjs
       - uses: actions/upload-pages-artifact@v4
