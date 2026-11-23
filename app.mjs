@@ -7,7 +7,7 @@ import {createCloud} from './cloud.mjs';
 const $=id=>document.getElementById(id);
 const escape=value=>String(value).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 let products=[],categories=[],selected='all',query='',cloud,phase='loading',connected=false,syncState='offline',imported=false,editingOriginal=null,returnFocus,categoryFromEditor=false;
-let toastTimer;
+let toastTimer,wantsToOpen=false;
 function notify(message){$('toast').textContent=message;$('toast').classList.add('visible');clearTimeout(toastTimer);toastTimer=setTimeout(()=>$('toast').classList.remove('visible'),5000);}
 function plural(n){return n%10===1&&n%100!==11?'упаковка':n%10>=2&&n%10<=4&&(n%100<12||n%100>14)?'упаковки':'упаковок';}
 function errorMessage(error){
@@ -30,7 +30,7 @@ function render(){
   const visible=products.filter(p=>(selected==='all'||p.category===selected)&&`${p.name} ${p.note||''} ${formatMeasurements(p)}`.toLocaleLowerCase('ru').includes(query));
   $('shelves').innerHTML=categories.map(c=>{
     const items=visible.filter(p=>p.category===c.id);if(!items.length)return '';
-    return `<section class="shelf"><div class="shelf-heading"><h2>${escape(c.name)}</h2><span>${items.length} ${plural(items.length)}</span></div><div class="products">${items.map(p=>`<button class="product" data-product="${escape(p.id)}" aria-label="${escape(p.name)}, ${escape(formatMeasurements(p))}. Изменить"><span class="package">${illustration(p)}<span class="package-label"><span class="product-name">${escape(p.name)}</span><span class="amount">${escape(formatMeasurements(p))}</span>${p.uncertain?'<span class="uncertain">Уточнить вес</span>':''}${p.note?`<span class="amount">${escape(p.note==='Домашние'||p.note==='Покупные'?p.note:'Овощная смесь')}</span>`:''}</span></span></button>`).join('')}</div><div class="shelf-handle" aria-hidden="true"></div></section>`;
+    return `<section class="shelf"><div class="shelf-heading"><h2>${escape(c.name)}</h2><span>${items.length} ${plural(items.length)}</span></div><div class="products">${items.map(p=>`<button class="product" data-product="${escape(p.id)}" aria-label="${escape(p.name)}, ${escape(formatMeasurements(p))}. Изменить"><span class="package">${illustration(p)}<span class="package-label"><span class="product-name">${escape(p.name)}</span><span class="amount">${escape(formatMeasurements(p))}</span>${p.uncertain?'<span class="uncertain">Уточнить вес</span>':''}${p.note?`<span class="amount">${escape(p.note==='Домашние'||p.note==='Покупные'?p.note:'Овощная смесь')}</span>`:''}</span></span></button>`).join('')}</div></section>`;
   }).join('')||'<div class="empty">Здесь пока ничего нет.<br>Добавьте продукт или выберите другую категорию.<button class="text-button" id="clearFilters">Показать все запасы</button></div>';
   categoryOptions();
   $('importPanel').hidden=imported||phase!=='ready';
@@ -47,7 +47,7 @@ function syncStatus(){
 }
 function showSession(state){
   phase=state.phase;
-  $('account').hidden=!state.user;$('accountEmail').textContent=state.user?.email||'';
+  $('account').hidden=!state.user;$('accountEmail').textContent=state.user?.email||'';$('accountEmail').title=state.user?.email||'';
   $('authPanel').hidden=phase==='ready';$('appContent').hidden=phase!=='ready';
   $('signIn').hidden=!['signed-out','denied'].includes(phase);
   $('retryConnection').hidden=phase!=='error';
@@ -66,7 +66,13 @@ function showSession(state){
   };
   if(content[phase]){$('authHeading').textContent=content[phase][0];$('authDescription').textContent=content[phase][1];}
   if(state.error&&phase==='error')$('authError').textContent=errorMessage(state.error);
-  if(phase==='ready')render();
+  if(phase==='ready'){
+    render();
+    if(wantsToOpen){wantsToOpen=false;door(false);}
+  }else door(true);
+  $('openDoor').disabled=phase==='loading'||phase==='setup';
+  $('doorAction').textContent=phase==='loading'?'Подключаемся…':phase==='error'?'Повторить подключение':phase==='denied'?'Войти другим аккаунтом':'Открыть морозилку';
+  $('doorStatus').textContent=phase==='denied'?content.denied[1]:phase==='error'?errorMessage(state.error):phase==='setup'?content.setup[1]:'';
   syncStatus();
 }
 async function busy(form,action){
@@ -79,7 +85,7 @@ async function busy(form,action){
 [$('editor'),$('categoryEditor')].forEach(dialog=>dialog.addEventListener('cancel',e=>{if(dialog.querySelector('form').dataset.busy)e.preventDefault();}));
 function requireReady(){if(phase!=='ready'||!connected||!navigator.onLine){notify('Нет соединения с общей морозилкой. Попробуйте после подключения.');return false;}return true;}
 
-$('categories').addEventListener('click',e=>{const button=e.target.closest('[data-category]');if(button){selected=button.dataset.category;render();if($('freezer').classList.contains('closed'))door(false);}});
+$('categories').addEventListener('click',e=>{const button=e.target.closest('[data-category]');if(button){selected=button.dataset.category;render();if(!$('door').hidden)door(false);}});
 $('search').addEventListener('input',e=>{query=e.target.value.trim().toLocaleLowerCase('ru');render();});
 $('shelves').addEventListener('click',e=>{const button=e.target.closest('[data-product]');if(button)edit(products.find(p=>p.id===button.dataset.product));if(e.target.closest('#clearFilters')){selected='all';query='';$('search').value='';render();}});
 function edit(product){
@@ -115,8 +121,22 @@ $('remove').addEventListener('click',async()=>{
     $('toast').append(' · ',undo);clearTimeout(toastTimer);toastTimer=setTimeout(()=>$('toast').classList.remove('visible'),10000);
   }catch(error){$('measureError').textContent=errorMessage(error);}
 });
-function door(closed){$('freezer').classList.toggle('closed',closed);$('door').hidden=!closed;$('freezer').querySelector('.freezer-lining').inert=closed;$('doorToggle').textContent=closed?'Открыть дверцу':'Закрыть дверцу';if(!closed&&phase==='ready')$('doorToggle').focus();}
-$('doorToggle').addEventListener('click',()=>door(!$('freezer').classList.contains('closed')));$('openDoor').addEventListener('click',()=>door(false));
+function door(closed){
+  document.body.classList.toggle('door-closed',closed);
+  $('door').hidden=!closed;
+  $('appContent').inert=closed;
+  document.querySelector('.concept-bar').inert=closed;
+  $('authPanel').inert=closed;
+  $('doorToggle').textContent=closed?'Открыть дверцу':'Закрыть дверцу';
+  if(closed){window.scrollTo(0,0);if(phase!=='loading')$('openDoor').focus();}
+  else if(phase==='ready')$('doorToggle').focus();
+}
+$('doorToggle').addEventListener('click',()=>door($('door').hidden));
+$('openDoor').addEventListener('click',()=>{
+  if(phase==='ready')door(false);
+  else if(phase==='error')location.reload();
+  else if(phase==='signed-out'||phase==='denied'){wantsToOpen=true;signIn();}
+});
 function newCategory(fromEditor=false){if(!requireReady())return;categoryFromEditor=fromEditor;$('categoryName').value='';$('categoryError').textContent='';$('categoryEditor').showModal();$('categoryName').focus();}
 $('addCategory').addEventListener('click',()=>newCategory());$('addCategoryFromEditor').addEventListener('click',()=>newCategory(true));$('closeCategory').addEventListener('click',()=>$('categoryEditor').close());
 $('categoryForm').addEventListener('submit',async e=>{
@@ -153,7 +173,15 @@ $('importFile').addEventListener('change',async e=>{
   const file=e.target.files[0];if(!file)return;
   try{if(file.size>1024*1024)throw new Error('Файл слишком большой. Максимум — 1 МБ.');await importInventory(JSON.parse(await file.text()));}catch(error){$('importError').textContent=errorMessage(error);}finally{e.target.value='';}
 });
-$('signIn').addEventListener('click',async()=>{if(!cloud)return;$('signIn').disabled=true;$('authError').textContent='';try{await cloud.signIn();}catch(error){$('authError').textContent=errorMessage(error);}finally{$('signIn').disabled=false;}});
+async function signIn(){
+  if(!cloud)return;
+  $('signIn').disabled=$('openDoor').disabled=true;
+  $('authError').textContent=$('doorStatus').textContent='';
+  try{await cloud.signIn();}
+  catch(error){wantsToOpen=false;$('authError').textContent=$('doorStatus').textContent=errorMessage(error);}
+  finally{$('signIn').disabled=false;$('openDoor').disabled=phase==='loading'||phase==='setup';}
+}
+$('signIn').addEventListener('click',signIn);
 $('signOut').addEventListener('click',async()=>{if(!cloud)return;try{await cloud.signOut();}catch(error){notify(errorMessage(error));}});
 $('retryConnection').addEventListener('click',()=>location.reload());
 window.addEventListener('online',syncStatus);window.addEventListener('offline',syncStatus);
