@@ -437,3 +437,14 @@ form[aria-busy=true] { opacity: .7; }
 .chapter-select select { min-width:0; }
 .ingredient-status { font-size:12px; }
 @media(max-width:650px) { .ingredient-status { font-size:12px; } }
+#recipeBook { --book-scroll-offset:86px; }
+.book-spread,.book-page h3 { scroll-margin-top:var(--book-scroll-offset); }
+.contents-recipe.last-read { background:#e5ead7; border-left:3px solid #547449; padding-right:10px; padding-left:10px; }
+.recipe-sections { display:none; }
+@media(max-width:650px) {
+ .book-navigation { flex-wrap:wrap; }
+ .recipe-sections { display:flex; flex-basis:100%; gap:10px; }
+ .recipe-sections button { flex:1; min-height:44px; padding:10px; border:1px solid #a3ad90; border-radius:6px; background:#e8ecdd; color:var(--ink); font-size:13px; }
+ .recipe-sections button:active { background:#d5dfc8; }
+ #recipeBook:has(.recipe-sections:not([hidden])) { --book-scroll-offset:142px; }
+}
